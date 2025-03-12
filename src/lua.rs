@@ -81,16 +81,24 @@ pub struct LuaContext {
     pub print_arena_stats: bool,
 }
 
+macro_rules! load_builtin_lib {
+    ($lua: expr, $filename: literal) => {
+        $lua.load(include_str!(concat!("lua/", $filename)))
+            .set_name(concat!("<BUILTIN>/", $filename))
+            .exec()
+            .context(concat!("Failed to execute builtin ", $filename, " script"))?;
+    };
+}
+
 impl ModLuaRuntime {
     pub fn new() -> LuaResult<Self> {
         let lua = mlua::Lua::new_with(
-            mlua::StdLib::TABLE | mlua::StdLib::STRING | mlua::StdLib::MATH,
+            mlua::StdLib::TABLE | mlua::StdLib::STRING | mlua::StdLib::MATH | mlua::StdLib::PACKAGE,
             mlua::LuaOptions::new(),
         )
         .context("Failed to initialize Lua")?;
 
         lua.globals().raw_remove("dofile")?;
-        lua.globals().raw_remove("require")?;
         lua.globals().raw_remove("collectgarbage")?;
         lua.globals().raw_remove("loadfile")?;
         // While this could potentially be useful, it bypasses
@@ -99,6 +107,8 @@ impl ModLuaRuntime {
         lua.protect_table(&lua.globals().raw_get::<LuaTable>("string")?)?;
         lua.protect_table(&lua.globals().raw_get::<LuaTable>("table")?)?;
         lua.protect_table(&lua.globals().raw_get::<LuaTable>("math")?)?;
+        Self::setup_package(&lua)?;
+        lua.protect_table(&lua.globals().raw_get::<LuaTable>("package")?)?;
         // This is replaced by the script environment table later.
         lua.globals().raw_remove("_G")?;
 
@@ -109,21 +119,12 @@ impl ModLuaRuntime {
         lua.set_app_data(arena);
 
         let lib_table = lua.create_table()?;
-        lua.globals().raw_set("mod", lib_table.clone())?;
+        lua.globals().raw_set("mod", lib_table.clone())?;        
 
-        macro_rules! load_builtin_lib {
-            ($filename: literal) => {
-                lua.load(include_str!(concat!("lua/", $filename)))
-                    .set_name(concat!("<BUILTIN>/", $filename))
-                    .exec()
-                    .context(concat!("Failed to execute builtin ", $filename, " script"))?;
-            };
-        }
-
-        load_builtin_lib!("util.lua");
-        load_builtin_lib!("iterutil.lua");
-        load_builtin_lib!("table.lua");
-        load_builtin_lib!("debug.lua");
+        load_builtin_lib!(lua, "util.lua");
+        load_builtin_lib!(lua, "iterutil.lua");
+        load_builtin_lib!(lua, "table.lua");
+        load_builtin_lib!(lua, "debug.lua");
 
         for result in lib_table.pairs() {
             let (_, value): (LuaValue, LuaValue) = result?;
@@ -146,6 +147,23 @@ impl ModLuaRuntime {
             .context("Failed to make builtin mod table read-only")?;
 
         Ok(Self { lua, lib_table })
+    }
+
+    fn setup_package(lua: &Lua) -> LuaResult<()> {
+        const REQUIRE_PATH: &str = "./?.lua;/data/?.lua;/?.lua";
+        let package = lua.globals().raw_get::<LuaTable>("package")?;
+
+        package.raw_remove("cpath")?;
+        package.raw_remove("loadlib")?;
+        package.raw_remove("preload")?;
+        package.raw_remove("searchpath")?;
+        package.raw_set("path", REQUIRE_PATH)?;
+
+        let searchers = package.raw_get::<LuaTable>("searchers")?;
+        searchers.clear()?;
+        load_builtin_lib!(lua, "vfssearcher.lua");
+
+        Ok(())
     }
 
     pub fn arena(&self) -> impl Deref<Target = LuaArena> + use<'_> {
