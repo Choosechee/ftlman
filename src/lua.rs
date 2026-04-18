@@ -8,6 +8,7 @@ use crate::xmltree::dom::unsize_node;
 mod debug;
 pub mod io;
 mod meta;
+mod regex;
 mod util;
 mod xml;
 
@@ -179,6 +180,11 @@ impl ModLuaRuntime {
         lib_table.raw_set(
             "meta",
             meta::create_meta_lib(&lua).context("Failed to create meta library table")?,
+        )?;
+
+        lib_table.raw_set(
+            "regex",
+            super::lua::regex::create_regex_lib(&lua).context("Failed to create regex library table")?,
         )?;
 
         debug::extend_debug_library(&lua, lib_table.get::<LuaTable>("debug")?)
