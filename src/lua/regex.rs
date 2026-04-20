@@ -24,7 +24,12 @@ impl Display for RegexOptionError {
                 write!(f, "lineTerminator '{string}' was {byte_count} bytes long; it must be 1 byte")
             },
             RegexOptionError::BadLineTerminatorByte { num } => {
-                write!(f, "lineTerminator '{num}' cannot be stored in a single byte")
+                if *num >= -128 && *num <= 255 {
+                    write!(f, "lineTerminator byte value 0x{:X} is not a valid ASCII character", *num as u8)
+                }
+                else {
+                    write!(f, "lineTerminator '{num}' cannot be stored in a single byte")
+                }
             },
             RegexOptionError::BadLineTerminatorType { actual_type } => {
                 write!(f, "lineTerminator must be a string or integer, but it was a {actual_type}")
@@ -87,28 +92,31 @@ fn set_line_terminator<'a>(builder: &'a mut RegexBuilder,
                     }
                 )))
             }
+            else if bytes[0] > 127 {
+                Err(LuaError::ExternalError(Arc::new(
+                    RegexOptionError::BadLineTerminatorByte {
+                        num: bytes[0] as i64
+                    }
+                )))
+            }
             else {
                 Ok(builder.line_terminator(bytes[0]))
             }
         },
         LuaValue::Integer(num) => {
-            if num >= 0 {
-                let byte = u8::try_from(num);
-                match byte {
-                    Ok(byte) => Ok(builder.line_terminator(byte)),
-                    Err(_) => Err(LuaError::ExternalError(Arc::new(
-                        RegexOptionError::BadLineTerminatorByte { num }
-                    )))
+            let byte = u8::try_from(num).map_err(|_| ()).and_then(|byte| {
+                if byte <= 127 {
+                    Ok(byte)
                 }
-            }
-            else {
-                let byte = i8::try_from(num);
-                match byte {
-                    Ok(byte) => Ok(builder.line_terminator(byte as u8)),
-                    Err(_) => Err(LuaError::ExternalError(Arc::new(
-                        RegexOptionError::BadLineTerminatorByte { num }
-                    )))
+                else {
+                    Err(())
                 }
+            });
+            match byte {
+                Ok(byte) => Ok(builder.line_terminator(byte)),
+                Err(_) => Err(LuaError::ExternalError(Arc::new(
+                    RegexOptionError::BadLineTerminatorByte { num }
+                )))
             }
         },
         LuaValue::Number(_) => Err(LuaError::ExternalError(Arc::new(
