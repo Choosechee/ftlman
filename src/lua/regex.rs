@@ -75,7 +75,8 @@ fn validate_regex_options_keys(options: &LuaTable) -> LuaResult<()> {
 fn set_line_terminator<'a>(builder: &'a mut RegexBuilder,
                            options: &LuaTable) -> LuaResult<&'a mut RegexBuilder> {
     let line_terminator: LuaValue = options.get("lineTerminator")?;
-    match line_terminator {
+    let mut line_terminator_specified = true;
+    let builder = match line_terminator {
         LuaValue::String(char) => {
             let bytes = char.as_bytes();
             if bytes.len() != 1 {
@@ -115,12 +116,23 @@ fn set_line_terminator<'a>(builder: &'a mut RegexBuilder,
                 actual_type: "float"
             }
         ))),
-        LuaValue::Nil => Ok(builder),
+        LuaValue::Nil => {
+            line_terminator_specified = false;
+            Ok(builder)
+        },
         value => Err(LuaError::ExternalError(Arc::new(
             RegexOptionError::BadLineTerminatorType {
                 actual_type: value.type_name()
             }
         )))
+    }?;
+    
+    if line_terminator_specified {
+        // Turn off crlf because it takes precedence over line_terminator
+        Ok(builder.crlf(false))
+    }
+    else {
+        Ok(builder)
     }
 }
 
@@ -150,7 +162,7 @@ fn regex_from_options(pattern: &str,
         set_bool_option!(case_insensitive);
         set_bool_option!(multi_line);
         set_bool_option!(dot_matches_new_line);
-        // TODO: Implement the reason why this is above crlf
+        // Above crlf because specifying lineTerminator turns off crlf
         set_line_terminator(&mut builder, &options)?;
         set_bool_option!(crlf);
         set_bool_option!(swap_greed);
