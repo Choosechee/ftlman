@@ -1,5 +1,6 @@
-use std::{cmp, collections::HashSet, error::Error, fmt::Display, sync::{Arc, LazyLock}};
+use std::{cmp, error::Error, fmt::Display, sync::Arc};
 
+use case_conv_macros::identifier_to_camel;
 use mlua::prelude::*;
 // using bytes version because Lua strings can be invalid UTF-8
 use regex::bytes::{Regex, RegexBuilder};
@@ -18,7 +19,8 @@ impl Display for RegexOptionError {
             RegexOptionError::UnknownOption { option } => {
                 write!(f, "unknown option '{option}'")
             }
-            RegexOptionError::BadLineTerminatorString { string, byte_count } => {
+            RegexOptionError::BadLineTerminatorString { string,
+                                                        byte_count } => {
                 write!(f, "lineTerminator '{string}' was {byte_count} bytes long; it must be 1 byte")
             },
             RegexOptionError::BadLineTerminatorByte { num } => {
@@ -33,128 +35,127 @@ impl Display for RegexOptionError {
 
 impl Error for RegexOptionError {}
 
-static RECOGNIZED_REGEX_OPTIONS: LazyLock<HashSet<&'static str>> =
-LazyLock::new(|| {
-    HashSet::from([
-        "unicode",
-        "caseInsensitive",
-        "multiLine",
-        "dotMatchesNewLine",
-        "crlf",
-        "lineTerminator",
-        "swapGreed",
-        "ignoreWhitespace",
-        "octal"
-    ])
-});
+static RECOGNIZED_REGEX_OPTIONS: [&'static str; 9] = [
+    "unicode",
+    "caseInsensitive",
+    "multiLine",
+    "dotMatchesNewLine",
+    "crlf",
+    "lineTerminator",
+    "swapGreed",
+    "ignoreWhitespace",
+    "octal"
+];
+
+fn validate_regex_options_keys(options: &LuaTable) -> LuaResult<()> {
+    for pair in options.pairs::<LuaValue, LuaValue>() {
+        let (key, _) = pair?;
+        if let LuaValue::String(key) = key {
+            let key = key.to_string_lossy();
+            if !RECOGNIZED_REGEX_OPTIONS.contains(&key.as_str()) {
+                return Err(LuaError::ExternalError(Arc::new(
+                    RegexOptionError::UnknownOption {
+                        option: key.into_boxed_str()
+                    }
+                )));
+            }
+        }
+        else {
+            return Err(LuaError::ExternalError(Arc::new(
+                RegexOptionError::UnknownOption {
+                    option: key.to_string().unwrap_or_default().into_boxed_str()
+                }
+            )));
+        }
+    }
+
+    Ok(())
+}
+
+fn set_line_terminator<'a>(builder: &'a mut RegexBuilder,
+                           options: &LuaTable) -> LuaResult<&'a mut RegexBuilder> {
+    let line_terminator: LuaValue = options.get("lineTerminator")?;
+    match line_terminator {
+        LuaValue::String(char) => {
+            let bytes = char.as_bytes();
+            if bytes.len() != 1 {
+                Err(LuaError::ExternalError(Arc::new(
+                    RegexOptionError::BadLineTerminatorString {
+                        string: char.to_string_lossy().into_boxed_str(),
+                        byte_count: bytes.len()
+                    }
+                )))
+            }
+            else {
+                Ok(builder.line_terminator(bytes[0]))
+            }
+        },
+        LuaValue::Integer(num) => {
+            if num >= 0 {
+                let byte = u8::try_from(num);
+                match byte {
+                    Ok(byte) => Ok(builder.line_terminator(byte)),
+                    Err(_) => Err(LuaError::ExternalError(Arc::new(
+                        RegexOptionError::BadLineTerminatorByte { num }
+                    )))
+                }
+            }
+            else {
+                let byte = i8::try_from(num);
+                match byte {
+                    Ok(byte) => Ok(builder.line_terminator(byte as u8)),
+                    Err(_) => Err(LuaError::ExternalError(Arc::new(
+                        RegexOptionError::BadLineTerminatorByte { num }
+                    )))
+                }
+            }
+        },
+        LuaValue::Number(_) => Err(LuaError::ExternalError(Arc::new(
+            RegexOptionError::BadLineTerminatorType {
+                actual_type: "float"
+            }
+        ))),
+        LuaValue::Nil => Ok(builder),
+        value => Err(LuaError::ExternalError(Arc::new(
+            RegexOptionError::BadLineTerminatorType {
+                actual_type: value.type_name()
+            }
+        )))
+    }
+}
 
 // TODO: Cache compiled pattern, will need to figure out how to hash a LuaTable
 // by value
-fn regex_from_options(pattern: &str, options: Option<LuaTable>) -> Result<Regex, LuaError> {
+fn regex_from_options(pattern: &str,
+                      options: Option<LuaTable>) -> Result<Regex, LuaError> {
     let mut builder = RegexBuilder::new(pattern);
     builder.crlf(true);
     builder.size_limit(usize::MAX);
 
     if let Some(options) = options {
-        for pair in options.pairs::<LuaValue, LuaValue>() {
-            let (key, _) = pair?;
-            if let LuaValue::String(key) = key {
-                let key = key.to_string_lossy();
-                if !RECOGNIZED_REGEX_OPTIONS.contains(key.as_str()) {
-                    return Err(LuaError::ExternalError(Arc::new(RegexOptionError::UnknownOption { option: key.into_boxed_str() })));
+        validate_regex_options_keys(&options)?;
+
+        macro_rules! set_bool_option {
+            ($option:ident) => {
+                let $option: LuaValue = options.get(identifier_to_camel!($option))?;
+                match $option {
+                    LuaValue::Boolean(bool) => builder.$option(bool),
+                    LuaValue::Nil => &builder,
+                    _ => builder.$option(true)
                 }
-            }
-            else {
-                return Err(LuaError::ExternalError(Arc::new(RegexOptionError::UnknownOption { option: key.to_string().unwrap_or_default().into_boxed_str() })));
-            }
+            };
         }
-        
-        let unicode: LuaValue = options.get("unicode")?;
-        match unicode {
-            LuaValue::Boolean(bool) => builder.unicode(bool),
-            LuaValue::Nil => &builder,
-            _ => builder.unicode(true)
-        };
 
-        let case_insensitive: LuaValue = options.get("caseInsensitive")?;
-        match case_insensitive {
-            LuaValue::Boolean(bool) => builder.case_insensitive(bool),
-            LuaValue::Nil => &builder,
-            _ => builder.case_insensitive(true)
-        };
-
-        let multi_line: LuaValue = options.get("multiLine")?;
-        match multi_line {
-            LuaValue::Boolean(bool) => builder.multi_line(bool),
-            LuaValue::Nil => &builder,
-            _ => builder.multi_line(true)
-        };
-
-        let dot_matches_new_line: LuaValue = options.get("dotMatchesNewLine")?;
-        match dot_matches_new_line {
-            LuaValue::Boolean(bool) => builder.dot_matches_new_line(bool),
-            LuaValue::Nil => &builder,
-            _ => builder.dot_matches_new_line(true)
-        };
-
-        let crlf: LuaValue = options.get("crlf")?;
-        match crlf {
-            LuaValue::Boolean(bool) => builder.crlf(bool),
-            LuaValue::Nil => &builder,
-            _ => builder.crlf(true)
-        };
-
-        let line_terminator: LuaValue = options.get("lineTerminator")?;
-        match line_terminator {
-            LuaValue::String(char) => {
-                let bytes = char.as_bytes();
-                if bytes.len() != 1 {
-                    return Err(LuaError::ExternalError(Arc::new(RegexOptionError::BadLineTerminatorString { string: char.to_string_lossy().into_boxed_str(), byte_count: bytes.len() })));
-                }
-
-                builder.line_terminator(bytes[0])
-            },
-            LuaValue::Integer(num) => {
-                if num >= 0 {
-                    let byte = u8::try_from(num);
-                    match byte {
-                        Ok(byte) => builder.line_terminator(byte),
-                        Err(_) => return Err(LuaError::ExternalError(Arc::new(RegexOptionError::BadLineTerminatorByte { num })))
-                    }
-                }
-                else {
-                    let byte = i8::try_from(num);
-                    match byte {
-                        Ok(byte) => builder.line_terminator(byte as u8),
-                        Err(_) => return Err(LuaError::ExternalError(Arc::new(RegexOptionError::BadLineTerminatorByte { num })))
-                    }
-                }
-            },
-            LuaValue::Number(_) => return Err(LuaError::ExternalError(Arc::new(RegexOptionError::BadLineTerminatorType { actual_type: "float" }))),
-            LuaValue::Nil => &builder,
-            value => return Err(LuaError::ExternalError(Arc::new(RegexOptionError::BadLineTerminatorType { actual_type: value.type_name() })))
-        };
-
-        let swap_greed: LuaValue = options.get("swapGreed")?;
-        match swap_greed {
-            LuaValue::Boolean(bool) => builder.swap_greed(bool),
-            LuaValue::Nil => &builder,
-            _ => builder.swap_greed(true)
-        };
-
-        let ignore_whitespace: LuaValue = options.get("ignoreWhitespace")?;
-        match ignore_whitespace {
-            LuaValue::Boolean(bool) => builder.ignore_whitespace(bool),
-            LuaValue::Nil => &builder,
-            _ => builder.ignore_whitespace(true)
-        };
-
-        let octal: LuaValue = options.get("octal")?;
-        match octal {
-            LuaValue::Boolean(bool) => builder.octal(bool),
-            LuaValue::Nil => &builder,
-            _ => builder.octal(true)
-        };
+        set_bool_option!(unicode);
+        set_bool_option!(case_insensitive);
+        set_bool_option!(multi_line);
+        set_bool_option!(dot_matches_new_line);
+        // TODO: Implement the reason why this is above crlf
+        set_line_terminator(&mut builder, &options)?;
+        set_bool_option!(crlf);
+        set_bool_option!(swap_greed);
+        set_bool_option!(ignore_whitespace);
+        set_bool_option!(octal);
     }
 
     builder.build().map_err(|error| {
@@ -180,7 +181,10 @@ pub fn create_regex_lib(lua: &Lua) -> LuaResult<LuaTable> {
 
     table.raw_set(
         "is_match",
-        lua.create_function(|lua, (pattern, haystack, start, options): (LuaString, LuaString, Option<LuaInteger>, Option<LuaTable>)| {
+        lua.create_function(|lua, (pattern, haystack,
+                                   start, options): (LuaString, LuaString,
+                                                     Option<LuaInteger>,
+                                                     Option<LuaTable>)| {
             let start = deluaify_index(lua, start.unwrap_or(1), &haystack);
             let regex = regex_from_options(&pattern.to_string_lossy(), options)?;
             
