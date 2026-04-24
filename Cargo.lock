@@ -3,16 +3,6 @@
 version = 4
 
 [[package]]
-name = "Inflector"
-version = "0.11.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fe438c63458706e03479442743baae6c88256498e6431708f6dfc520a26515d3"
-dependencies = [
- "lazy_static",
- "regex",
-]
-
-[[package]]
 name = "ab_glyph"
 version = "0.2.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -700,15 +690,6 @@ dependencies = [
  "rustix 0.38.44",
  "wayland-backend",
  "wayland-client",
-]
-
-[[package]]
-name = "case_conv_macros"
-version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6314d0eb9c6dcfdbe4324aed649c17a5ab01e1bfcde653d9812269bcc4768155"
-dependencies = [
- "Inflector",
 ]
 
 [[package]]
@@ -1588,7 +1569,6 @@ version = "0.7.2"
 dependencies = [
  "annotate-snippets",
  "anyhow",
- "case_conv_macros",
  "clap",
  "crc32fast",
  "dirs",
@@ -2276,12 +2256,6 @@ name = "khronos_api"
 version = "3.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc"
-
-[[package]]
-name = "lazy_static"
-version = "1.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 
 [[package]]
 name = "libc"

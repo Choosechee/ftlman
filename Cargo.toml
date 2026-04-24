@@ -77,7 +77,6 @@ flate2 = "1"
 
 # For unpacking updates for Linux and MacOS, at least seems pretty lightweight
 tar = { version = "0.4", default-features = false }
-case_conv_macros = "1.0.1"
 
 # For loading system fonts on Linux
 [target.'cfg(target_os = "linux")'.dependencies]
