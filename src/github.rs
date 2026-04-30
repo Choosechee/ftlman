@@ -1,15 +1,18 @@
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
+// pretty ugly to put this whole thing as a type parmeter, so I'm importing
+use ureq::typestate::WithoutBody;
+
 use crate::{AGENT, cache::CACHE};
 
 const API_ROOT: &str = "https://api.github.com";
 
-fn make_get(url: &str) -> ureq::Request {
+fn make_get(url: &str) -> ureq::RequestBuilder<WithoutBody> {
     AGENT
         .get(url)
-        .set("Accept", "application/vnd.github+json")
-        .set("X-GitHub-Api-Version", "2022-11-28")
+        .header("Accept", "application/vnd.github+json")
+        .header("X-GitHub-Api-Version", "2022-11-28")
 }
 
 pub struct Repository {
@@ -47,9 +50,11 @@ impl Repository {
                     repo = self.name
                 );
 
-                let mut out = vec![];
                 log::debug!("Fetching releases for GitHub repository {}/{}", self.owner, self.name);
-                make_get(&url).call()?.into_reader().read_to_end(&mut out)?;
+
+                // there is a 10MB limit to read_to_vec unless you configure
+                // otherwise, but it should definitely be enough
+                let out = make_get(&url).call()?.body_mut().read_to_vec()?;
                 Ok(out)
             },
         )?;

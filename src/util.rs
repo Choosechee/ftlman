@@ -5,6 +5,7 @@ use std::{
 
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use ureq::http;
 
 mod gdrive;
 pub use gdrive::*;
@@ -286,4 +287,12 @@ pub fn touch_create(path: impl AsRef<Path>) -> std::io::Result<()> {
         .create(true)
         .open(path)
         .map(|_| ())
+}
+
+pub fn content_type_no_charset<T>(response: &http::Response<T>) -> &str {
+    let content_type_full = response.headers().get("Content-Type")
+                                              .and_then(|v| v.to_str().ok())
+                                              .unwrap_or_default();
+    let semicolon_index = content_type_full.find(';').unwrap_or(content_type_full.len());
+    &content_type_full[..semicolon_index]
 }

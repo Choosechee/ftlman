@@ -12,7 +12,7 @@ log = "0.4"
 
 clap = { version = "4", features = ["derive"] }
 eframe = { version = "0.33", features = ["persistence"] }
-ureq = "2"
+ureq = "3"
 egui_dnd = "0.14"
 egui_extras = { version = "0.33", features = ["syntect"] }
 dirs = "5"

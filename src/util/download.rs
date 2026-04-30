@@ -1,12 +1,14 @@
-use anyhow::{Result, bail};
-use ureq::Response;
+use std::io::Read;
 
-pub fn check_response_status(res: &ureq::Response) -> Result<()> {
+use anyhow::{Result, bail};
+use ureq::{Body, http};
+
+pub fn check_response_status<T>(res: &http::Response<T>) -> Result<()> {
     if res.status() != 200 {
         bail!(
             "Received unsuccessful response code: {} {}",
-            res.status(),
-            res.status_text()
+            res.status().as_u16(),
+            res.status().as_str()
         );
     }
 
@@ -14,19 +16,23 @@ pub fn check_response_status(res: &ureq::Response) -> Result<()> {
 }
 
 pub fn download_body_with_progress(
-    response: Response,
+    response: http::Response<Body>,
     mut on_progress: impl FnMut(u64, Option<u64>),
 ) -> Result<Vec<u8>> {
     let is_chunked = response
-        .header("Transfer-Encoding")
+        .headers()
+        .get("Transfer-Encoding")
+        .and_then(|v| v.to_str().ok())
         .is_some_and(|x| x.eq_ignore_ascii_case("chunked"));
 
     let content_length = response
-        .header("Content-Length")
+        .headers()
+        .get("Content-Length")
+        .and_then(|v| v.to_str().ok())
         .filter(|_| !is_chunked)
         .and_then(|x| x.parse::<u64>().ok());
 
-    let mut reader = response.into_reader();
+    let mut reader = response.into_body().into_reader();
 
     const BUFFER_SIZE: usize = 4096;
     let mut out = vec![0; BUFFER_SIZE];

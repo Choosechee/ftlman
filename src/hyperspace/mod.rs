@@ -185,7 +185,7 @@ impl HyperspaceZipAsset {
     }
 
     pub fn fetch(&self, mut progress_callback: impl FnMut(u64, u64)) -> Result<Vec<u8>> {
-        let response = AGENT.get(&self.url).call()?;
+        let response = AGENT.get(self.url.as_ref()).call()?;
 
         crate::util::download_body_with_progress(response, |current, total| {
             if let Some(total) = total {

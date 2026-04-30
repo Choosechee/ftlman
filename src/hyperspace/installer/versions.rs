@@ -184,7 +184,7 @@ impl VersionIndex {
 
                     let mut last_error = None;
                     for (source_name, url) in index_urls {
-                        let response = match AGENT.get(url).call() {
+                        let response = match AGENT.get(*url).call() {
                             Ok(response) => response,
                             Err(error) => {
                                 error!("Failed to fetch FTL version index from {source_name}: {error}");
@@ -194,7 +194,7 @@ impl VersionIndex {
                         };
 
                         let mut result = Vec::new();
-                        response.into_reader().read_to_end(&mut result)?;
+                        response.into_body().into_reader().read_to_end(&mut result)?;
                         if std::str::from_utf8(&result).is_err() {
                             bail!("Body contains invalid UTF-8")
                         }

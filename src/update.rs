@@ -8,6 +8,7 @@ use anyhow::{Context as _, Result, bail};
 use eframe::egui;
 use log::{debug, error, info};
 use parking_lot::Mutex;
+use ureq::http;
 
 use crate::{AGENT, EXE_DIRECTORY, PARSED_VERSION, github, util};
 
@@ -83,18 +84,19 @@ pub fn initiate_update_to(
     };
 
     let response = AGENT
-        .request("GET", &asset.browser_download_url)
+        .get(&asset.browser_download_url)
         .call()
         .context("Failed to send download HTTP request")?;
 
-    if response.status() != 200 {
-        bail!("Request returned non-200 status code {}", response.status());
+    if response.status() != http::StatusCode::OK {
+        bail!("Request returned non-200 (OK) status code {}", response.status());
     }
 
-    if response.content_type() != "application/octet-stream" {
+    let content_type = util::content_type_no_charset(&response);
+    if content_type != "application/octet-stream" {
         bail!(
             "Request returned non-application/octet-stream content-type {}",
-            response.content_type()
+            content_type
         );
     }
 

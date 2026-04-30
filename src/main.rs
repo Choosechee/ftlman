@@ -73,10 +73,12 @@ const MOD_ORDER_FILENAME: &str = "modorder.json";
 static PARSED_VERSION: LazyLock<semver::Version> = LazyLock::new(|| semver::Version::parse(VERSION).unwrap());
 static USER_AGENT: LazyLock<String> = LazyLock::new(|| format!("FTL Manager v{}", crate::VERSION));
 static AGENT: LazyLock<ureq::Agent> = LazyLock::new(|| {
-    ureq::AgentBuilder::new()
-        .user_agent(&USER_AGENT)
-        .https_only(true)
-        .build()
+    ureq::Agent::new_with_config(
+        ureq::Agent::config_builder()
+                    .user_agent(&*USER_AGENT)
+                    .https_only(true)
+                    .build()
+    )
 });
 static EXE_DIRECTORY: LazyLock<PathBuf> = LazyLock::new(|| {
     std::env::current_exe()
