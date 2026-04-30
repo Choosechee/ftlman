@@ -101,9 +101,9 @@ strip = false
 debug = true
 
 [patch.crates-io]
-egui = { git = "https://github.com/afishhh/egui", rev = "f5d9f00117b3f8ff0af59924151fa2b9b584ce7d" }
-eframe = { git = "https://github.com/afishhh/egui", rev = "f5d9f00117b3f8ff0af59924151fa2b9b584ce7d" }
-epaint = { git = "https://github.com/afishhh/egui", rev = "f5d9f00117b3f8ff0af59924151fa2b9b584ce7d" }
+egui = { git = "https://github.com/Choosechee/egui-ftlman", branch = "changes"}
+eframe = { git = "https://github.com/Choosechee/egui-ftlman", branch = "changes"}
+epaint = { git = "https://github.com/Choosechee/egui-ftlman", branch = "changes"}
 
 [workspace]
 members = ["compare_with_slipstream/normalize_xml"]
