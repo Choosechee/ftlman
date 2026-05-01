@@ -4,7 +4,7 @@ use std::{
     ops::Range,
     path::Path,
     sync::{
-        Arc, LazyLock,
+        Arc, LazyLock, OnceLock,
         atomic::{AtomicBool, Ordering},
         mpsc,
     },
@@ -21,7 +21,6 @@ use eframe::egui::{
 };
 use egui_extras::syntax_highlighting;
 use log::debug;
-use once_cell::unsync::OnceCell;
 use parking_lot::Mutex;
 use regex::Regex;
 use silpkg::sync::Pkg;
@@ -96,7 +95,7 @@ enum PatchWorkerCommand {
 struct PatchWorker {
     pkg: Pkg<std::fs::File>,
     // TODO: Replace with std variant after https://github.com/rust-lang/rust/issues/109737
-    lua: OnceCell<ModLuaRuntime>,
+    lua: OnceLock<ModLuaRuntime>,
 
     receiver: mpsc::Receiver<PatchWorkerCommand>,
     shared: SharedArc,
@@ -152,7 +151,7 @@ impl PatchWorker {
             move || {
                 (Self {
                     pkg,
-                    lua: OnceCell::new(),
+                    lua: OnceLock::new(),
                     receiver: crecv,
                     shared: output,
                 })

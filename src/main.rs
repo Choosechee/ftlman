@@ -1,4 +1,5 @@
 #![feature(offset_of_enum)] // :)
+#![feature(once_cell_try)] // this is soooo close to being stabilized, trust me
 
 use std::{
     borrow::Cow,
@@ -12,7 +13,7 @@ use std::{
     io::{BufReader, Cursor, Read, Seek, Write},
     path::{Path, PathBuf},
     process::ExitCode,
-    sync::{Arc, LazyLock, atomic::AtomicU64},
+    sync::{Arc, LazyLock, OnceLock, atomic::AtomicU64},
     task::Poll,
 };
 
@@ -27,7 +28,6 @@ use eframe::{
 };
 use egui_dnd::DragDropItem;
 use log::{debug, error, info, warn};
-use once_cell::sync::OnceCell;
 use parking_lot::Mutex;
 use poll_promise::Promise;
 use serde::{Deserialize, Serialize};
@@ -1997,9 +1997,9 @@ struct Mod {
     /// Whether this mod is the Hyperspace.ftl file from the hyperspace zip
     is_hyperspace_ftl: bool,
     /// Metadata from mod-appendix/metadata.xml
-    cached_metadata: OnceCell<Option<Metadata>>,
+    cached_metadata: OnceLock<Option<Metadata>>,
     /// Additional metadata for Hyperspace mods
-    cached_hs_metadata: OnceCell<Option<HsMetadata>>,
+    cached_hs_metadata: OnceLock<Option<HsMetadata>>,
 }
 
 impl DragDropItem for &mut Mod {
