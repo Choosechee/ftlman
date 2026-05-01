@@ -57,7 +57,7 @@ memchr = "2"
 annotate-snippets = "0.12"
 
 # Localisation
-fluent = "0.16"
+fluent = "0.17"
 
 # Used for dependency checking
 semver = { version = "1", features = ["serde"] }
