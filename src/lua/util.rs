@@ -12,10 +12,16 @@ pub fn extend_util_library(lua: &Lua, table: LuaTable) -> LuaResult<()> {
             let mut chunk_name: Cow<'static, str> = Cow::Borrowed("=[eval]");
             let mut context_path = None;
 
-            if let Some((file, line)) = lua
-                .inspect_stack(1)
-                .and_then(|dbg| dbg.source().short_src.map(|name| (name.into_owned(), dbg.curr_line())))
-            {
+            // needing to check the line number now might have fixed a bug
+            // (before mlua 0.11, it would have been -1 instead of None)
+            if let Some((file, line)) = lua.inspect_stack(1, |dbg| {
+                dbg.source().short_src.and_then(|name| {
+                    match dbg.current_line() {
+                        Some(line) => Some((name.into_owned(), line)),
+                        None => None,
+                    }
+                })
+            }).unwrap_or(None) {
                 chunk_name = Cow::Owned(format!("=[eval@{file}:{line}]"))
             }
 

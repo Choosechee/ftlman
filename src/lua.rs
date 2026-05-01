@@ -53,7 +53,7 @@ impl LuaExt for Lua {
         )?;
         metatable.raw_set("__metatable", LuaValue::Boolean(true))?;
 
-        table.set_metatable(Some(metatable));
+        table.set_metatable(Some(metatable))?;
 
         Ok(())
     }
@@ -79,7 +79,7 @@ impl LuaExt for Lua {
 
         metatable.raw_set("__metatable", LuaValue::Boolean(true))?;
 
-        upper.set_metatable(Some(metatable));
+        upper.set_metatable(Some(metatable))?;
 
         Ok(upper)
     }

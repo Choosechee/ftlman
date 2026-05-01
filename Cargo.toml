@@ -68,7 +68,7 @@ jiff = { version = "0.2" }
 # This dependency could be removed but it's pretty small.
 open = "5.3.1"
 
-mlua = { version = "0.10", features = ["lua54", "macros", "vendored", "error-send", "serialize"] }
+mlua = { version = "0.11", features = ["lua54", "macros", "vendored", "error-send", "serde"] }
 gc-arena = "0.5.3"
 
 # For decompressing updates, also used in silpkg and other dependencies
